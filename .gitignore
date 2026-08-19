@@ -1,0 +1,15 @@
+runs/
+checkpoints/
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+results/*_predictions.json
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.env
+.venv/
+venv/
+.DS_Store
+wandb/

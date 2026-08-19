@@ -1,0 +1,32 @@
+# Resolved versions actually installed and verified on this machine (Phase 0).
+# Recorded because the floors below are much older than what pip resolves today,
+# and the code is adapted forward to these, not pinned back to the floors.
+#
+#   python            3.13.5 (project .venv)
+#   torch             2.8.0+cu129     <- cu129 index ceiling for cp313; CUDA 12.9
+#   torchvision       0.23.0+cu129
+#   transformers      5.15.1          <- major version ahead of the >=4.45 floor
+#   accelerate        1.14.0
+#   peft              0.20.0
+#   bitsandbytes      0.50.1          <- native win_amd64 wheel; falls back to the
+#                                        CUDA 12.8 binary on a 12.9 driver (benign)
+#   datasets          5.0.1
+#   qwen-vl-utils     0.0.14
+#   tokenizers        0.22.2
+#   numpy             2.5.2
+#   pillow            12.3.0
+#
+# Hardware: RTX 4060 Laptop, 8.00 GB VRAM, sm_89, bf16 supported. Windows 11.
+# Note this is half the 16 GB the build plan assumes — see DECISIONS.md #12.
+
+torch>=2.4.0
+transformers>=4.45.0
+accelerate>=0.34.0
+peft>=0.13.0
+bitsandbytes>=0.44.0
+datasets>=3.0.0
+qwen-vl-utils>=0.0.8
+pillow>=10.0.0
+numpy>=1.26.0
+pyyaml>=6.0
+sentencepiece>=0.2.0
