@@ -83,10 +83,21 @@ byte-identical inputs and reruns are reproducible.
 
 ## Status
 
-Foundation code (`metrics.py`, `corruptions.py`, `report.py`) is written and
-tested. The training and evaluation path is written but has not yet been
-executed on a GPU. See **[BUILD_PLAN.md](BUILD_PLAN.md)** for what remains, in
-what order, and where the known risks are.
+Phases 0-2 of **[BUILD_PLAN.md](BUILD_PLAN.md)** are complete and committed; the
+baseline evaluation (Phase 3) is in progress. Concretely, what has actually been
+run on hardware:
+
+- Environment verified on CUDA. Resolved library versions are recorded at the top
+  of `requirements.txt`.
+- Data pipeline verified by decoding, not inspection: the training label mask
+  reproduces the assistant turn byte-exactly, and its boundary shifts per sample
+  with each image's visual-token count.
+- Smoke run passes end to end - 8 examples, loss 1.093 -> 0.220 over 12 steps,
+  adapter saved and reloaded, no OOM.
+
+**No results table yet.** The numbers below stay as placeholders until the
+evaluation sweeps finish; nothing in this README is estimated or filled in by
+hand. See BUILD_PLAN.md for the remaining phases and the known risks.
 
 ## Setup
 
@@ -96,8 +107,14 @@ cd robustdoc-vlm
 pip install -r requirements.txt
 ```
 
-Needs a CUDA GPU with ≥15 GB (free-tier Colab T4 or Kaggle P100 both work).
-`bitsandbytes` requires CUDA — this will not run on CPU or Apple Silicon.
+Needs a CUDA GPU. `bitsandbytes` requires CUDA — this will not run on CPU or
+Apple Silicon.
+
+Originally written for a 16 GB free-tier GPU, but measured peak usage is **4.99 GB**
+during training (4-bit + LoRA + gradient checkpointing, `batch_size: 1`) and
+**1.53 GB** during generation, so ~8 GB is sufficient at the default
+`max_pixels: 401408`. It was developed on an 8 GB RTX 4060 Laptop; see
+DECISIONS.md #12.
 
 ## Running it
 
