@@ -190,8 +190,23 @@ whose behaviour under Windows WDDM is not the same as under Linux. If paging
 misbehaves, the fallback is plain `adamw_8bit` — the paging exists to survive
 memory spikes, not because the optimiser state is large.
 
-**Open:** the `max_pixels` value that actually fits. Recorded once measured, not
-before.
+**Settled by measurement (Phase 1/2).** `max_pixels: 401408` fits unchanged; it
+never needed halving. Measured on this card:
+
+| | |
+| --- | --- |
+| Weights, 4-bit NF4 | 2.43 GB |
+| Peak allocated, fwd+bwd, batch_size=1 | 4.99 GB |
+| Peak reserved | 5.73 GB |
+| Free after a training step | 1.16 GB of 8.00 GB |
+| Peak during generation (eval) | 1.53 GB |
+
+Evaluation is far cheaper than training because there are no activations to
+retain. Training throughput is ~6.5 s per example (forward+backward, gradient
+checkpointing on); base-model generation is ~7.0 s per sample at ~75 new tokens.
+
+`paged_adamw_8bit` ran without incident on Windows, so the `cudaMallocManaged`
+concern above did not materialise and the fallback was not needed.
 
 ## 13. Corrupted images are re-normalised to the clean image's pixel area
 

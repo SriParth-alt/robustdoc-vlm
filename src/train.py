@@ -85,9 +85,19 @@ def main() -> None:
     ap.add_argument("--output-dir", default=None)
     ap.add_argument("--train-limit", type=int, default=None,
                     help="Cap training examples — use a small value for a smoke run.")
+    # Smoke-run overrides. At the configured grad_accum=8, an 8-example smoke run
+    # produces 3 optimiser steps and logging_steps=10 logs none of them, so the
+    # "loss is finite and decreasing" check has nothing to read. These let the
+    # smoke test see a real curve without editing the tuned config.
+    ap.add_argument("--grad-accum", type=int, default=None)
+    ap.add_argument("--logging-steps", type=int, default=None)
     args = ap.parse_args()
 
     cfg = load_config(args.config)
+    if args.grad_accum is not None:
+        cfg["grad_accum"] = args.grad_accum
+    if args.logging_steps is not None:
+        cfg["logging_steps"] = args.logging_steps
     out_dir = Path(args.output_dir or cfg["output_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -116,7 +126,10 @@ def main() -> None:
         gradient_checkpointing_kwargs={"use_reentrant": False},
         learning_rate=cfg["learning_rate"],
         lr_scheduler_type=cfg["lr_scheduler"],
-        warmup_ratio=cfg["warmup_ratio"],
+        # transformers 5.15 removed `warmup_ratio` and merged it into
+        # `warmup_steps`, now a float: >=1 is an absolute step count, <1 is a
+        # fraction of total training steps. cfg's 0.03 carries over unchanged.
+        warmup_steps=cfg["warmup_ratio"],
         max_grad_norm=cfg["max_grad_norm"],
         optim="paged_adamw_8bit",
         bf16=torch.cuda.is_bf16_supported(),
