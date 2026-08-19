@@ -332,6 +332,52 @@ unpredictable tail.
 in hours. The payload gains a `complete` flag so a partial file is never mistaken
 for a finished sweep.
 
+## 16. `max_new_tokens` lowered from 768 to 512
+
+**Chose:** cap generation at 512 new tokens.
+
+**Changed from:** 768. This one changes the measurement, so it is recorded rather
+than folded silently into a config tweak.
+
+The cost of a condition is driven by tokens emitted, and under heavy corruption
+the base model stops emitting a compact JSON object and runs to the cap on most
+samples. Measured: `gaussian_blur s3` took 10819.6 s against 550.7 s for clean,
+~20x, while scoring parse rate 0.780 and value recall 0.073. The sweep's runtime
+is therefore dominated by generating long output that is unparseable anyway, and
+extrapolating from the observed conditions a full 19-condition sweep was heading
+for 15-20 h per tag on this GPU.
+
+512 was chosen against the measured distribution of target lengths, not picked
+for convenience. Tokenised over all 800 CORD training targets:
+
+| percentile | tokens |
+| --- | --- |
+| p50 | 99 |
+| p90 | 202 |
+| p95 | 256 |
+| p99 | 442 |
+| p100 | 573 |
+
+So 512 clears p99 with margin and truncates only the longest ~1% of targets.
+
+**Cost, stated honestly:** a receipt whose correct serialisation exceeds 512
+tokens can no longer be answered correctly, and its fields are counted as misses.
+That is a real ceiling on the reported numbers, and it means these results are not
+directly comparable to a run at 768. Two things limit the damage: the cap applies
+identically to the base and fine-tuned models, so the *delta* - which is the
+headline claim - is unaffected in expectation; and the truncated cases are the
+longest receipts, which both models handle worst anyway.
+
+**Rejected alternative:** adding `repetition_penalty` to attack the degeneration
+directly. It would have been more targeted, but it abandons pure greedy decoding
+and contradicts decision #9, trading a clean "one correct answer, no sampling
+variance" story for a faster run. A truncation ceiling is easier to state and
+easier for a reader to reason about.
+
+**Consequence:** the 6 conditions completed under the 768 cap were discarded
+rather than reused. Mixing caps inside one sweep would make conditions
+incomparable, which is a worse problem than the ~4 h of lost GPU time.
+
 ---
 
 ## Rejected
