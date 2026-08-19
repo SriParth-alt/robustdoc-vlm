@@ -98,9 +98,16 @@ def main() -> None:
         if hasattr(v, "shape"):
             print(f"    {k}: {tuple(v.shape)} {v.dtype}")
 
-    ids, labels = batch["input_ids"], batch["labels"]
+    ids, labels, attn = batch["input_ids"], batch["labels"], batch["attention_mask"]
     check("labels.shape == input_ids.shape", labels.shape == ids.shape,
           f"{tuple(labels.shape)} vs {tuple(ids.shape)}")
+
+    # The prompt mask is `labels[i, :n] = -100`, which is only valid under right
+    # padding. Under left padding it would mask pad tokens and leave the tail of
+    # the prompt unmasked, so this is load-bearing rather than cosmetic.
+    right_padded = all(int(attn[i][0]) == 1 for i in range(attn.shape[0]))
+    check("batch is right-padded (required for prefix masking)", right_padded,
+          "attention_mask starts at 1 on every row")
 
     print("\n== 5. label mask coverage (the bug that hides in the loss curve) ==")
     seq_len = ids.shape[1]
@@ -125,11 +132,22 @@ def main() -> None:
         gt_i = parse_ground_truth(examples[i]["ground_truth"])
         want = target_json(gt_i)
         print(f"  decoded unmasked labels: {decoded[:300]}")
-        exact = decoded.strip() == want.strip()
-        contains = want in decoded
-        check(f"sample {i}: unmasked labels reproduce the target JSON",
-              exact or contains,
-              "exact" if exact else ("target is a substring" if contains else "MISMATCH"))
+        # Byte-exact, not "contains". A substring test would pass even if
+        # the mask started one turn too early and leaked an
+        # "<|im_start|>assistant" prefix into the labels, which is the exact
+        # failure this check exists to catch. The trailing "<|im_end|>" plus
+        # newline is the chat template's turn terminator and is a legitimate
+        # training target.
+        expected = want + "<|im_end|>\n"
+        check(f"sample {i}: unmasked labels are exactly the assistant turn",
+              decoded == expected,
+              "byte-exact" if decoded == expected
+              else f"MISMATCH; suffix = {decoded[len(want):]!r}")
+
+        first = int((row != -100).nonzero()[0])
+        prev_tok = processor.tokenizer.decode(ids[i][first - 1 : first])
+        at_tok = processor.tokenizer.decode(ids[i][first : first + 1])
+        print(f"  first unmasked idx={first}  prev={prev_tok!r}  at={at_tok!r}")
         leaked = [s for s in ("You are a document understanding model",
                               "Extract the structured data from this receipt",
                               "system", "<|vision_start|>") if s in decoded]

@@ -193,6 +193,53 @@ memory spikes, not because the optimiser state is large.
 **Open:** the `max_pixels` value that actually fits. Recorded once measured, not
 before.
 
+## 13. Corrupted images are re-normalised to the clean image's pixel area
+
+**Chose:** `resize_for_budget` -> `apply_corruption` -> resize back to the clean
+image's own area, in `src/evaluate.py`.
+
+**Changed from:** a single resize before corruption. That was wrong, and it was
+caught by measurement in Phase 1, not by reading the code.
+
+`rotation` uses `expand=True`, so the canvas grows to contain the tilted image.
+Measured against the 401,408-pixel budget:
+
+| severity | pixels | vs budget |
+| --- | --- | --- |
+| 1 (+/-3 deg)  | 446,157 | 1.11x |
+| 2 (+/-7 deg)  | 507,297 | 1.26x |
+| 3 (+/-13 deg) | 592,767 | 1.48x |
+
+Qwen2-VL emits one visual token per 28x28 patch, so uncapped this hands
+`rotation` up to ~48% more visual tokens than any other condition. Its headline
+number - "delta vs clean" - would then be a mix of a tilt effect and a
+resolution/compute effect, with no way to separate them. That is exactly the
+confound the fixed pixel budget exists to prevent, and rotation was the single
+corruption escaping it.
+
+Normalising to *the clean image's own area* rather than to the global cap
+matters: many CORD receipts resize to well under 401,408 px, and a global cap
+would still let rotation gain pixels on those. Measured after the fix, visual
+token counts are identical to clean for all five size-preserving corruptions and
+within +/-5% for rotation, with the residual non-monotonic across severity
+(+23/+7/+12 tokens on one sample, -20/+5 on another) - i.e. rounding to the
+28-pixel patch grid, not a systematic advantage.
+
+Re-normalising is also the more physically faithful choice. A real phone photo of
+a tilted receipt is taken with the same sensor, so the receipt occupies *fewer*
+pixels of the frame, not more. The original code was implicitly giving the tilted
+document a larger camera.
+
+**Cost:** rotation now carries a small resolution loss on top of the tilt
+(~0.82x linear at severity 3), so it is not a pure geometric transform and the
+README should not describe it as one. Driving the residual to exactly zero would
+mean cropping the rotated image back to the original aspect ratio, which cuts off
+receipt corners - a worse trade than a few percent of token count.
+
+**Not fixed in `corruptions.py`**, which is the verified measurement contract.
+The correction belongs to how evaluation feeds the model, not to what a rotation
+is.
+
 ---
 
 ## Rejected

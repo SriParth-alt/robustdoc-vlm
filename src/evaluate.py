@@ -14,7 +14,7 @@ import argparse
 import json
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import torch
 import yaml
@@ -34,8 +34,10 @@ def load_model(cfg: dict, adapter: str | None):
         if torch.cuda.is_bf16_supported()
         else torch.float16,
     )
+    # device_map pinned to GPU 0 and `dtype` rather than the deprecated
+    # `torch_dtype` — see the matching comment in train.py (transformers 5.15).
     model = Qwen2VLForConditionalGeneration.from_pretrained(
-        cfg["model_id"], quantization_config=quant, device_map="auto", torch_dtype="auto"
+        cfg["model_id"], quantization_config=quant, device_map={"": 0}, dtype="auto"
     )
     if adapter:
         from peft import PeftModel
@@ -48,16 +50,34 @@ def load_model(cfg: dict, adapter: str | None):
 @torch.no_grad()
 def run_condition(
     model, processor, dataset, name: str, severity: int, cfg: dict
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], List[str]]:
     preds: List[str] = []
     targets: List[Any] = []
     started = time.time()
 
     for idx, ex in enumerate(dataset):
-        image = resize_for_budget(ex["image"], cfg["max_pixels"])
+        clean = resize_for_budget(ex["image"], cfg["max_pixels"])
+        # Every condition must enter the model at the same pixel area as its own
+        # clean counterpart, so `budget` is that image's area, not the global cap.
+        budget = clean.size[0] * clean.size[1]
         # seed=idx keeps each sample's corruption identical across runs, so base
         # and fine-tuned are compared on byte-identical inputs.
-        image = apply_corruption(image, name, max(1, severity), seed=idx)
+        image = apply_corruption(clean, name, max(1, severity), seed=idx)
+        # Re-normalise the area. `rotation` uses expand=True, so the canvas grows
+        # to hold the tilted image — measured at 1.11x / 1.26x / 1.48x the pixel
+        # budget for severities 1/2/3. Qwen2-VL emits one visual token per 28x28
+        # patch, so left alone that hands rotation up to ~50% more visual tokens
+        # than any other condition, and its "delta vs clean" becomes a mix of a
+        # tilt effect and a resolution effect with no way to separate them.
+        #
+        # Normalising to the clean image's own area (rather than to the global
+        # cap) also matters for receipts that start under budget: capping alone
+        # would still let rotation gain pixels on those. This also models the
+        # physical case correctly — a real photo of a tilted receipt uses the
+        # same sensor, so the receipt occupies fewer pixels, not more.
+        #
+        # No-op for the five size-preserving corruptions. See DECISIONS.md #13.
+        image = resize_for_budget(image, budget)
 
         prompt = processor.apply_chat_template(
             build_messages(None), tokenize=False, add_generation_prompt=True

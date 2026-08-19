@@ -49,8 +49,14 @@ def build_model(cfg: dict):
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         cfg["model_id"],
         quantization_config=quant,
-        device_map="auto",
-        torch_dtype="auto",
+        # Pin to GPU 0 rather than "auto". On a single card accelerate would fit
+        # everything anyway, but if something else is holding VRAM it silently
+        # CPU-offloads layers instead of failing, which reads as a 100x
+        # slowdown rather than as the OOM it actually is.
+        device_map={"": 0},
+        # transformers 5.15: `torch_dtype` still works but only through an
+        # explicit back-compat shim; `dtype` is the current name.
+        dtype="auto",
         attn_implementation=cfg.get("attn_implementation", "eager"),
     )
     model = prepare_model_for_kbit_training(
