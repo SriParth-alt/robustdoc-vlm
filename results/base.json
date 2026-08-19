@@ -1,0 +1,81 @@
+{
+  "tag": "base",
+  "adapter": null,
+  "split": "test",
+  "n_samples": 50,
+  "model_id": "Qwen/Qwen2-VL-2B-Instruct",
+  "max_new_tokens": 768,
+  "complete": false,
+  "results": [
+    {
+      "n": 50,
+      "field_precision": 0.0,
+      "field_recall": 0.0,
+      "field_f1": 0.0,
+      "exact_match": 0.0,
+      "parse_rate": 0.92,
+      "value_precision": 0.7754,
+      "value_recall": 0.4503,
+      "value_f1": 0.5697,
+      "corruption": "clean",
+      "severity": 0,
+      "seconds": 419.2
+    },
+    {
+      "n": 50,
+      "field_precision": 0.0026,
+      "field_recall": 0.0016,
+      "field_f1": 0.0019,
+      "exact_match": 0.0,
+      "parse_rate": 0.92,
+      "value_precision": 0.7974,
+      "value_recall": 0.4829,
+      "value_f1": 0.6015,
+      "corruption": "gaussian_blur",
+      "severity": 1,
+      "seconds": 401.2
+    },
+    {
+      "n": 50,
+      "field_precision": 0.0,
+      "field_recall": 0.0,
+      "field_f1": 0.0,
+      "exact_match": 0.0,
+      "parse_rate": 0.9,
+      "value_precision": 0.6838,
+      "value_recall": 0.3929,
+      "value_f1": 0.499,
+      "corruption": "gaussian_blur",
+      "severity": 2,
+      "seconds": 555.3
+    },
+    {
+      "n": 50,
+      "field_precision": 0.0,
+      "field_recall": 0.0,
+      "field_f1": 0.0,
+      "exact_match": 0.0,
+      "parse_rate": 0.78,
+      "value_precision": 0.1747,
+      "value_recall": 0.073,
+      "value_f1": 0.103,
+      "corruption": "gaussian_blur",
+      "severity": 3,
+      "seconds": 531.5
+    },
+    {
+      "n": 50,
+      "field_precision": 0.0,
+      "field_recall": 0.0,
+      "field_f1": 0.0,
+      "exact_match": 0.0,
+      "parse_rate": 0.9,
+      "value_precision": 0.7723,
+      "value_recall": 0.4581,
+      "value_f1": 0.575,
+      "corruption": "gaussian_noise",
+      "severity": 1,
+      "seconds": 373.6
+    }
+  ]
+}
