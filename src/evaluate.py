@@ -122,6 +122,8 @@ def main() -> None:
     ap.add_argument("--conditions", nargs="*", default=None,
                     help="Subset of corruption names; default sweeps the full grid.")
     ap.add_argument("--save-predictions", action="store_true")
+    ap.add_argument("--resume", action="store_true",
+                    help="Skip conditions already present in results/<tag>.json.")
     args = ap.parse_args()
 
     with open(args.config) as f:
@@ -137,13 +139,48 @@ def main() -> None:
     if args.conditions:
         grid = [(n, s) for n, s in grid if n in args.conditions]
 
+    out = Path("results")
+    out.mkdir(exist_ok=True)
+    res_path = out / f"{args.tag}.json"
+    pred_path = out / f"{args.tag}_predictions.json"
+
+    # Resume. A 19-condition sweep can run for hours and a condition on heavily
+    # corrupted input can take 3 h on its own (measured: gaussian_blur s3 at
+    # 10819 s vs 550 s for clean, because the model degenerates and runs to the
+    # max_new_tokens cap on every sample). Writing only at the end meant a killed
+    # session lost the entire sweep - which is exactly what Phase 3 of
+    # BUILD_PLAN.md exists to prevent. See DECISIONS.md #15.
+    results, all_preds = [], {}
+    if args.resume and res_path.exists():
+        prior = json.loads(res_path.read_text())
+        results = prior.get("results", [])
+        if pred_path.exists():
+            all_preds = json.loads(pred_path.read_text())
+        done = {(r["corruption"], r["severity"]) for r in results}
+        grid = [(n, sv) for n, sv in grid if (n, sv) not in done]
+        print(f"resuming: {len(done)} condition(s) already on disk, {len(grid)} to go")
+
+    def flush() -> None:
+        res_path.write_text(json.dumps({
+            "tag": args.tag,
+            "adapter": args.adapter,
+            "split": args.split,
+            "n_samples": len(dataset),
+            "model_id": cfg["model_id"],
+            "max_new_tokens": cfg["max_new_tokens"],
+            "complete": len(results) == len(corruption_grid()),
+            "results": results,
+        }, indent=2))
+        if args.save_predictions:
+            pred_path.write_text(json.dumps(all_preds, indent=2))
+
     print(f"{args.tag}: {len(grid)} conditions x {len(dataset)} samples")
 
-    results, all_preds = [], {}
     for name, severity in grid:
         res, preds = run_condition(model, processor, dataset, name, severity, cfg)
         results.append(res)
         all_preds[f"{name}_s{severity}"] = preds
+        flush()   # persist after every condition, not after the loop
         print(
             f"  {name:>15} s{severity}  "
             f"F1={res['field_f1']:.3f}  EM={res['exact_match']:.3f}  "
@@ -151,21 +188,10 @@ def main() -> None:
             f"parse={res['parse_rate']:.3f}  ({res['seconds']}s)"
         )
 
-    out = Path("results")
-    out.mkdir(exist_ok=True)
-    payload = {
-        "tag": args.tag,
-        "adapter": args.adapter,
-        "split": args.split,
-        "n_samples": len(dataset),
-        "model_id": cfg["model_id"],
-        "results": results,
-    }
-    (out / f"{args.tag}.json").write_text(json.dumps(payload, indent=2))
-    if args.save_predictions:
-        (out / f"{args.tag}_predictions.json").write_text(json.dumps(all_preds, indent=2))
-
-    print(f"wrote results/{args.tag}.json")
+    flush()
+    n_done, n_total = len(results), len(corruption_grid())
+    print(f"wrote {res_path}  ({n_done}/{n_total} conditions"
+          f"{'' if n_done == n_total else ' — INCOMPLETE, rerun with --resume'})")
 
 
 if __name__ == "__main__":

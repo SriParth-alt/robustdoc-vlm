@@ -299,6 +299,39 @@ are committed rather than gitignored. Raw model output is the audit trail - it
 makes every number in the README recomputable offline, including by a metric that
 does not exist yet, without re-running a two-hour sweep.
 
+## 15. Evaluation results are written per condition, and resumable
+
+**Chose:** `src/evaluate.py` writes `results/<tag>.json` after every condition and
+accepts `--resume` to skip conditions already on disk.
+
+**Changed from:** a single write after all 19 conditions finished. That was a
+defect, and it defeated the stated purpose of running the baseline first. Phase 3
+of BUILD_PLAN.md exists so that "if the full training run eats the session, a
+baseline already on disk means the session was not wasted" - but the baseline
+never reached disk until the final condition completed, so any interruption lost
+the entire sweep.
+
+It stopped being theoretical during the Phase 3 run. Measured per-condition
+wall-clock on the base model, 50 samples each:
+
+| condition | seconds |
+| --- | --- |
+| clean | 550.7 |
+| gaussian_blur s1 | 435.6 |
+| gaussian_blur s2 | 585.1 |
+| gaussian_blur s3 | **10819.6** |
+
+Three hours for one condition, ~20x the clean case. The cause is visible in the
+scores: at severity 3 the model stops emitting a compact JSON object
+(parse rate 0.780, value recall 0.073) and instead degenerates, running to the
+`max_new_tokens` cap on most samples. Generation cost scales with tokens emitted,
+so the worst conditions are also the slowest, and a full sweep has a long and
+unpredictable tail.
+
+**Cost:** one JSON write per condition, which is negligible against a run measured
+in hours. The payload gains a `complete` flag so a partial file is never mistaken
+for a finished sweep.
+
 ---
 
 ## Rejected
