@@ -21,7 +21,8 @@ The whole thing trains on a single free-tier GPU.
 > Nothing here has been measured yet. Do not publish this file, and do not cite
 > these numbers anywhere, until the pipeline has actually been run.
 >
-> Implementation status and the steps to get there: **[BUILD_PLAN.md](BUILD_PLAN.md)**.
+> Design rationale for every non-obvious choice, including the ones that were
+> wrong and got revised: **[DECISIONS.md](DECISIONS.md)**.
 
 ```
 python -m src.evaluate --tag base                                # baseline
@@ -83,8 +84,8 @@ byte-identical inputs and reruns are reproducible.
 
 ## Status
 
-Phases 0-2 of **[BUILD_PLAN.md](BUILD_PLAN.md)** are complete and committed; the
-baseline evaluation (Phase 3) is in progress. Concretely, what has actually been
+The environment, data pipeline and smoke run are verified and committed; the
+baseline evaluation is in progress. Concretely, what has actually been
 run on hardware:
 
 - Environment verified on CUDA. Resolved library versions are recorded at the top
@@ -97,7 +98,8 @@ run on hardware:
 
 **No results table yet.** The numbers below stay as placeholders until the
 evaluation sweeps finish; nothing in this README is estimated or filled in by
-hand. See BUILD_PLAN.md for the remaining phases and the known risks.
+hand. Partial result files carry `"complete": false` so an unfinished sweep
+cannot be mistaken for a finished one.
 
 ## Setup
 
@@ -148,7 +150,6 @@ src/
   report.py        results JSON -> README tables
 configs/default.yaml
 scripts/smoke_test.sh
-BUILD_PLAN.md      phased implementation brief + known failure points
 DECISIONS.md       design rationale and rejected alternatives
 ```
 

@@ -149,7 +149,7 @@ def main() -> None:
     # 10819 s vs 550 s for clean, because the model degenerates and runs to the
     # max_new_tokens cap on every sample). Writing only at the end meant a killed
     # session lost the entire sweep - which is exactly what Phase 3 of
-    # BUILD_PLAN.md exists to prevent. See DECISIONS.md #15.
+    # running the baseline first is meant to prevent. See DECISIONS.md #15.
     results, all_preds = [], {}
     if args.resume and res_path.exists():
         prior = json.loads(res_path.read_text())

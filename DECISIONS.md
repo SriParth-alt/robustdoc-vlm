@@ -305,11 +305,10 @@ does not exist yet, without re-running a two-hour sweep.
 accepts `--resume` to skip conditions already on disk.
 
 **Changed from:** a single write after all 19 conditions finished. That was a
-defect, and it defeated the stated purpose of running the baseline first. Phase 3
-of BUILD_PLAN.md exists so that "if the full training run eats the session, a
-baseline already on disk means the session was not wasted" - but the baseline
-never reached disk until the final condition completed, so any interruption lost
-the entire sweep.
+defect, and it defeated the stated purpose of evaluating the baseline before
+training at all: if the training run eats the session, a baseline already on disk
+is what makes the session salvageable. But the baseline never reached disk until
+the final condition completed, so any interruption lost the entire sweep.
 
 It stopped being theoretical during the Phase 3 run. Measured per-condition
 wall-clock on the base model, 50 samples each:

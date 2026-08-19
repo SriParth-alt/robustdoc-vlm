@@ -76,6 +76,20 @@
       "corruption": "gaussian_noise",
       "severity": 1,
       "seconds": 373.6
+    },
+    {
+      "n": 50,
+      "field_precision": 0.0,
+      "field_recall": 0.0,
+      "field_f1": 0.0,
+      "exact_match": 0.0,
+      "parse_rate": 0.96,
+      "value_precision": 0.7359,
+      "value_recall": 0.4457,
+      "value_f1": 0.5551,
+      "corruption": "gaussian_noise",
+      "severity": 2,
+      "seconds": 378.6
     }
   ]
 }
