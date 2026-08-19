@@ -23,6 +23,7 @@ from transformers import AutoProcessor, BitsAndBytesConfig, Qwen2VLForConditiona
 from .corruptions import apply_corruption, corruption_grid
 from .data import build_messages, load_cord, parse_ground_truth, resize_for_budget
 from .metrics import score
+from .value_metrics import value_score
 
 
 def load_model(cfg: dict, adapter: str | None):
@@ -97,6 +98,12 @@ def run_condition(
         targets.append(parse_ground_truth(ex["ground_truth"]))
 
     result = score(preds, targets).as_dict()
+    # Schema-free companion. Field F1 is the headline; this one says how much of
+    # the receipt was actually read, independent of whether the key structure
+    # matched. Without it a baseline pinned at field F1 0.000 shows the same
+    # 0.000 under every corruption and the robustness sweep carries no
+    # information. See DECISIONS.md #14.
+    result.update(value_score(preds, targets).as_dict())
     result.update(
         corruption=name,
         severity=severity,
@@ -140,6 +147,7 @@ def main() -> None:
         print(
             f"  {name:>15} s{severity}  "
             f"F1={res['field_f1']:.3f}  EM={res['exact_match']:.3f}  "
+            f"valR={res['value_recall']:.3f}  "
             f"parse={res['parse_rate']:.3f}  ({res['seconds']}s)"
         )
 

@@ -4,7 +4,9 @@ checkpoints/
 *.bin
 *.pt
 *.ckpt
-results/*_predictions.json
+# results/*_predictions.json is deliberately NOT ignored: raw model output
+# is the audit trail that makes every README number recomputable offline.
+# See DECISIONS.md #14.
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/

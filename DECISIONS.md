@@ -255,6 +255,50 @@ receipt corners - a worse trade than a few percent of token count.
 The correction belongs to how evaluation feeds the model, not to what a rotation
 is.
 
+## 14. A schema-free value-recall metric reported alongside field F1
+
+**Chose:** add `src/value_metrics.py` - flatten both records to leaf values,
+discard the keys, compare as multisets. Field F1 remains the headline metric and
+`metrics.py` is unmodified.
+
+**Why it was added, stated plainly:** field F1 collapses two different failures
+onto the same number - "cannot read the receipt" and "reads it perfectly, names
+the keys differently". Measured in Phase 2, base Qwen2-VL-2B emits well-formed
+JSON (parse rate 1.000) with correct values under its own key names, e.g.
+`items[].name` where CORD wants `menu[].nm`, and scores field F1 exactly 0.000.
+
+The consequence is not cosmetic. A baseline pinned at 0.000 on clean input also
+scores 0.000 under all eighteen corruption conditions, so the base half of the
+robustness sweep - half the deliverable - would have been nineteen zeros and
+could not have shown degradation at all. You cannot measure a decline in a
+quantity already at the floor. Measured on two test samples, base value recall is
+0.263, which is off the floor and therefore has somewhere to fall.
+
+**The credibility cost, which is real.** This metric was added *after* observing
+that the primary metric returned zero for the baseline. That is the shape of
+metric-shopping and should be treated with suspicion by default. Three things are
+offered against that, and they are checkable rather than assertions:
+
+1. Field F1 is unchanged and still leads every table. `metrics.py` was not
+   touched; the new module imports from it so the locale-aware numeric handling
+   in decision #5 has exactly one definition.
+2. The definition was committed *before* the baseline evaluation was run, so git
+   history shows it could not have been tuned against results that did not yet
+   exist.
+3. It is reported for both models. It is not a metric that only ever flatters the
+   baseline - fine-tuning is expected to win on both views.
+
+**Cost:** value recall cannot distinguish a correctly structured record from a
+bag of right-looking strings. A model emitting every correct value in a flat list
+scores identically to one emitting the exact target schema. That is precisely the
+weakness `metrics.py` exists to cover, which is why this is reported *alongside*
+and never *instead*. Read alone it would overstate how usable the output is.
+
+**Also settled here:** evaluation runs with `--save-predictions`, and those files
+are committed rather than gitignored. Raw model output is the audit trail - it
+makes every number in the README recomputable offline, including by a metric that
+does not exist yet, without re-running a two-hour sweep.
+
 ---
 
 ## Rejected

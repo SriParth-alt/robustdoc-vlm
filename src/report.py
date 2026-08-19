@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Dict, List
 
@@ -30,17 +31,28 @@ def delta(new: float, old: float) -> str:
     return f"{d:+.3f}" if abs(d) >= 0.0005 else "0.000"
 
 
+def vr(r: Dict) -> str:
+    """Value recall, blank for result files written before the metric existed."""
+    return f"{r['value_recall']:.3f}" if "value_recall" in r else "—"
+
+
 def headline(base: Dict, tuned: Dict) -> List[str]:
     b, t = index(base).get(("clean", 0)), index(tuned).get(("clean", 0))
     if not (b and t):
         return []
     rows = [
-        "| Model | Field F1 | Exact match | Parse rate |",
-        "| --- | --- | --- | --- |",
-        f"| Qwen2-VL-2B (base, 4-bit) | {b['field_f1']:.3f} | {b['exact_match']:.3f} | {b['parse_rate']:.3f} |",
-        f"| + QLoRA fine-tune | **{t['field_f1']:.3f}** | **{t['exact_match']:.3f}** | **{t['parse_rate']:.3f}** |",
-        f"| Delta | {delta(t['field_f1'], b['field_f1'])} | {delta(t['exact_match'], b['exact_match'])} | {delta(t['parse_rate'], b['parse_rate'])} |",
+        "| Model | Field F1 | Exact match | Value recall | Parse rate |",
+        "| --- | --- | --- | --- | --- |",
+        f"| Qwen2-VL-2B (base, 4-bit) | {b['field_f1']:.3f} | {b['exact_match']:.3f} | {vr(b)} | {b['parse_rate']:.3f} |",
+        f"| + QLoRA fine-tune | **{t['field_f1']:.3f}** | **{t['exact_match']:.3f}** | **{vr(t)}** | **{t['parse_rate']:.3f}** |",
     ]
+    d_vr = (delta(t["value_recall"], b["value_recall"])
+            if "value_recall" in b and "value_recall" in t else "—")
+    rows.append(
+        f"| Delta | {delta(t['field_f1'], b['field_f1'])} | "
+        f"{delta(t['exact_match'], b['exact_match'])} | {d_vr} | "
+        f"{delta(t['parse_rate'], b['parse_rate'])} |"
+    )
     return rows
 
 
@@ -48,20 +60,33 @@ def robustness(payload: Dict) -> List[str]:
     idx = index(payload)
     clean = idx.get(("clean", 0))
     rows = [
-        "| Corruption | Severity | Field F1 | Δ vs clean | Exact match |",
-        "| --- | --- | --- | --- | --- |",
+        "| Corruption | Severity | Field F1 | Δ F1 vs clean | Value recall | Δ VR vs clean | Exact match |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for (name, sev), r in idx.items():
         if name == "clean":
             continue
         d = delta(r["field_f1"], clean["field_f1"]) if clean else "—"
+        d_vr = (delta(r["value_recall"], clean["value_recall"])
+                if clean and "value_recall" in r and "value_recall" in clean else "—")
         rows.append(
-            f"| {name} | {sev} | {r['field_f1']:.3f} | {d} | {r['exact_match']:.3f} |"
+            f"| {name} | {sev} | {r['field_f1']:.3f} | {d} | {vr(r)} | {d_vr} | "
+            f"{r['exact_match']:.3f} |"
         )
     return rows
 
 
 def main() -> None:
+    # The tables contain U+0394 (delta) and U+2014 (em dash). On Windows stdout
+    # defaults to cp1252, which cannot encode either, so `python -m src.report >
+    # results/tables.md` dies with UnicodeEncodeError before writing a row. Force
+    # UTF-8 rather than downgrading the characters, so the settled output format
+    # is preserved.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):
+        pass
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--tags", nargs="+", default=["base", "finetuned"])
     args = ap.parse_args()
