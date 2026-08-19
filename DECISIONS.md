@@ -332,51 +332,61 @@ unpredictable tail.
 in hours. The payload gains a `complete` flag so a partial file is never mistaken
 for a finished sweep.
 
-## 16. `max_new_tokens` lowered from 768 to 512
+## 16. `max_new_tokens` stays at 768 - a wrong diagnosis, corrected
 
-**Chose:** cap generation at 512 new tokens.
+**Chose:** 768. Briefly lowered to 512 during Phase 3, then reverted. Both the
+change and the revert are recorded because the reasoning behind the change was
+wrong, and the way it was caught is the useful part.
 
-**Changed from:** 768. This one changes the measurement, so it is recorded rather
-than folded silently into a config tweak.
+**What was observed.** During the first baseline sweep, `gaussian_blur s3` took
+10819.6 s against 550.7 s for clean - roughly 20x. Extrapolating, a 19-condition
+sweep looked like 15-20 h per tag.
 
-The cost of a condition is driven by tokens emitted, and under heavy corruption
-the base model stops emitting a compact JSON object and runs to the cap on most
-samples. Measured: `gaussian_blur s3` took 10819.6 s against 550.7 s for clean,
-~20x, while scoring parse rate 0.780 and value recall 0.073. The sweep's runtime
-is therefore dominated by generating long output that is unparseable anyway, and
-extrapolating from the observed conditions a full 19-condition sweep was heading
-for 15-20 h per tag on this GPU.
+**What it was blamed on.** Degenerate generation: the theory was that under heavy
+corruption the model stops emitting compact JSON and runs to the `max_new_tokens`
+cap on every sample, so cost tracks the cap. `max_new_tokens` was lowered to 512
+and the sweep restarted, discarding six completed conditions.
 
-512 was chosen against the measured distribution of target lengths, not picked
-for convenience. Tokenised over all 800 CORD training targets:
+**What actually disproved it.** On the rerun, all four completed conditions
+reproduced their scores *exactly* - `blur s3` again at value recall 0.073, parse
+rate 0.780 - while `blur s3` fell to 410.9 s. A 26x speedup cannot come from a
+768 -> 512 cap, and identical scores mean identical output. Measuring the saved
+predictions directly:
 
-| percentile | tokens |
-| --- | --- |
-| p50 | 99 |
-| p90 | 202 |
-| p95 | 256 |
-| p99 | 442 |
-| p100 | 573 |
+| condition | samples at the cap | mean tokens |
+| --- | --- | --- |
+| clean | 2 / 50 | 130 |
+| gaussian_blur s1 | 2 / 50 | 134 |
+| gaussian_blur s2 | 4 / 50 | 144 |
+| gaussian_blur s3 | 11 / 50 | 181 |
 
-So 512 clears p99 with margin and truncates only the longest ~1% of targets.
+Eleven capped samples at `blur s3`, and parse rate 0.780 is exactly eleven
+failures - the capped samples *are* the parse failures. Eleven samples times the
+256-token difference is roughly 400 s of extra generation, predicting ~800 s at
+the 768 cap. Not 10819 s.
 
-**Cost, stated honestly:** a receipt whose correct serialisation exceeds 512
-tokens can no longer be answered correctly, and its fields are counted as misses.
-That is a real ceiling on the reported numbers, and it means these results are not
-directly comparable to a run at 768. Two things limit the damage: the cap applies
-identically to the base and fine-tuned models, so the *delta* - which is the
-headline claim - is unaffected in expectation; and the truncated cases are the
-longest receipts, which both models handle worst anyway.
+**The real cause was environmental.** The GPU was observed in performance state
+P3 drawing 15 W of a 140 W budget with clock event reason `Idle: Active`, no
+thermal or power throttling. Every condition in that first run was also ~1.7x
+slower than its rerun (550/435/585 s versus 301/308/335 s), which is background
+contention, not workload. The slow run was a machine state, not a property of the
+evaluation.
 
-**Rejected alternative:** adding `repetition_penalty` to attack the degeneration
-directly. It would have been more targeted, but it abandons pure greedy decoding
-and contradicts decision #9, trading a clean "one correct answer, no sampling
-variance" story for a faster run. A truncation ceiling is easier to state and
-easier for a reader to reason about.
+**Why 512 was reverted rather than kept.** The cap provably did not change base
+model scores, so keeping it would have been harmless *for the baseline*. It would
+not have been harmless for the fine-tuned model. Target serialisations run to 573
+tokens at p100, and a fine-tuned model emits well-formed CORD JSON of exactly that
+length - so a 512 cap truncates legitimate long answers and counts them as
+misses. It would bias the headline delta downward on precisely the long receipts
+the fine-tune is trained to produce, while leaving the base model untouched
+because its long outputs are degenerate anyway. An asymmetric ceiling on the
+comparison is worse than a slow sweep.
 
-**Consequence:** the 6 conditions completed under the 768 cap were discarded
-rather than reused. Mixing caps inside one sweep would make conditions
-incomparable, which is a worse problem than the ~4 h of lost GPU time.
+**Cost of the mistake:** about four hours of GPU time, and six conditions
+discarded on a diagnosis that the evidence did not support. The corrective was
+cheap and should have come first - comparing scores across the two caps, and
+measuring generated token lengths from saved predictions, both took under a
+minute and both were available before the restart.
 
 ---
 

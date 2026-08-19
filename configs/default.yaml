@@ -46,4 +46,4 @@ num_workers: 2
 resume_from_checkpoint: null
 
 # --- generation ---
-max_new_tokens: 512     # see DECISIONS.md #16 — capped to bound degenerate generation
+max_new_tokens: 768         # see DECISIONS.md #16 — must clear p100 of target lengths (573)
