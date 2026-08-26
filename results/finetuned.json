@@ -48,6 +48,20 @@
       "corruption": "gaussian_blur",
       "severity": 2,
       "seconds": 485.9
+    },
+    {
+      "n": 50,
+      "field_precision": 0.1921,
+      "field_recall": 0.0901,
+      "field_f1": 0.1226,
+      "exact_match": 0.0,
+      "parse_rate": 0.66,
+      "value_precision": 0.2285,
+      "value_recall": 0.1071,
+      "value_f1": 0.1459,
+      "corruption": "gaussian_blur",
+      "severity": 3,
+      "seconds": 1290.4
     }
   ]
 }
