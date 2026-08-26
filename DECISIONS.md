@@ -387,6 +387,59 @@ cheap and should have come first - comparing scores across the two caps, and
 measuring generated token lengths from saved predictions, both took under a
 minute and both were available before the restart.
 
+## 17. Phase 4 training run - recorded outcome
+
+**Configuration as specified:** 800 CORD train examples, 3 epochs, batch size 1 x
+grad accum 8 (effective 8), 300 optimiser steps, LoRA r=16 on the language tower
+only, 4-bit NF4 base, `paged_adamw_8bit`, cosine schedule from 1e-4 with 9 warmup
+steps. 18,464,768 trainable parameters, 0.83% of 2.23B.
+
+**Wall clock.** The resumed portion - steps 100 to 300 - is measured at 3644.3 s,
+i.e. 18.2 s per optimiser step, or 2.28 s per example. At that rate the full 300
+steps is ~5460 s, about **1.5 h**. Only the 3644.3 s figure is directly measured;
+the total extrapolates the first 100 steps at the same rate because that process
+was deliberately killed and never reported a `train_runtime`.
+
+This is well under the 4.3 h projected from smoke-run throughput. The smoke
+estimate of 6.5 s per example was ~2.8x pessimistic - it was taken from an
+8-example run where model load and warmup dominate.
+
+**Peak VRAM: 4.99 GB allocated / 5.73 GB reserved**, leaving ~1.16 GB free on the
+8 GB card. This is the Phase 1 measurement under an identical configuration
+(same `max_pixels`, batch size, gradient checkpointing, forward+backward) rather
+than an instrumented reading from this run, which was not captured. The run
+completed without OOM, which is consistent with it.
+
+**Loss.** Training loss over 30 logged points, 1.0198 -> 0.0588, `train_loss`
+0.0358 overall. Validation loss at each epoch:
+
+| epoch | eval_loss |
+| --- | --- |
+| 1 | 0.0830 |
+| 2 | 0.0605 |
+| 3 | 0.0598 |
+
+Validation tracked training throughout with no divergence, so 18.5M trainable
+parameters on 800 examples did not overfit.
+
+**Finding: the third epoch was close to wasted.** It bought a 1.2% improvement in
+eval loss (0.0605 -> 0.0598) for a third of the total compute. Two epochs would
+have produced substantially the same model in two thirds of the time. The
+configured value of 3 is left as-is because changing it now would invalidate the
+comparison against the already-completed baseline, but on this dataset it is not
+the value to pick again.
+
+**Checkpoint-resume was exercised, as required, and works.** Training was
+deliberately killed after checkpoint-100 and restarted. It resumed at step 101
+with epoch 1.1, learning rate 7.358e-05 continuing the cosine schedule, and loss
+0.0922 continuing from 0.0880 - rather than restarting at epoch 0.1, lr 1e-4 and
+loss ~1.0. The full 30-point log history survived in the final checkpoint, so
+optimiser, scheduler and RNG state all restored correctly.
+
+This mattered beyond ticking a box: the same `--resume` path had already saved
+the Phase 3 evaluation sweep when a session died mid-run, and both features were
+claimed by the repository before anything had executed them.
+
 ---
 
 ## Rejected
