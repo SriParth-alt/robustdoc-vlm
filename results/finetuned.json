@@ -1,0 +1,53 @@
+{
+  "tag": "finetuned",
+  "adapter": "runs/qlora/adapter",
+  "split": "test",
+  "n_samples": 50,
+  "model_id": "Qwen/Qwen2-VL-2B-Instruct",
+  "max_new_tokens": 768,
+  "complete": false,
+  "results": [
+    {
+      "n": 50,
+      "field_precision": 0.859,
+      "field_recall": 0.8416,
+      "field_f1": 0.8502,
+      "exact_match": 0.38,
+      "parse_rate": 1.0,
+      "value_precision": 0.9192,
+      "value_recall": 0.9006,
+      "value_f1": 0.9098,
+      "corruption": "clean",
+      "severity": 0,
+      "seconds": 580.1
+    },
+    {
+      "n": 50,
+      "field_precision": 0.8433,
+      "field_recall": 0.8106,
+      "field_f1": 0.8266,
+      "exact_match": 0.42,
+      "parse_rate": 1.0,
+      "value_precision": 0.9144,
+      "value_recall": 0.8789,
+      "value_f1": 0.8963,
+      "corruption": "gaussian_blur",
+      "severity": 1,
+      "seconds": 865.5
+    },
+    {
+      "n": 50,
+      "field_precision": 0.69,
+      "field_recall": 0.6568,
+      "field_f1": 0.673,
+      "exact_match": 0.2,
+      "parse_rate": 1.0,
+      "value_precision": 0.7569,
+      "value_recall": 0.7205,
+      "value_f1": 0.7383,
+      "corruption": "gaussian_blur",
+      "severity": 2,
+      "seconds": 485.9
+    }
+  ]
+}
